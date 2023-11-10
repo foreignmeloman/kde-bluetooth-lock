@@ -6,7 +6,7 @@ import sys
 
 
 if not sys.version_info >= (3, 7):
-    print('ERROR: Python version >= 3.7 is required')
+    print('ERROR: Python version >= 3.7 is required', file=sys.stderr)
 
 
 CONFIG_PATH = '/etc/kde-bluetooth-lock/config.json'
