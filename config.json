@@ -1,0 +1,5 @@
+{
+	"macs": ["AA:BB:CC:DD:EE:FF"],
+	"interval": 3,
+	"retry": 8
+}

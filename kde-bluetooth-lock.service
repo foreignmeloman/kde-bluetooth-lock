@@ -1,0 +1,9 @@
+[Unit]
+Description=KDE Bluetooth Lock service
+After=bluetooth.service
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/share/kde-bluetooth-lock/kde-bluetooth-lock.py
+
+[Install]
+WantedBy=multi-user.target
