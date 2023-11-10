@@ -1,6 +1,6 @@
 install:
 	install -D kde-bluetooth-lock.py /usr/share/kde-bluetooth-lock/kde-bluetooth-lock.py
-	install -D config.json /etc/kde-bluetooth-lock/config.json
+	mkdir -p /etc/kde-bluetooth-lock/ && cp -n config.json /etc/kde-bluetooth-lock/config.json
 	install -D kde-bluetooth-lock.service /etc/systemd/system/kde-bluetooth-lock.service
 	systemctl daemon-reload
 
