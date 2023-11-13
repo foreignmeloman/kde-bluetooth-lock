@@ -39,10 +39,17 @@ def check_locked(session_id: int) -> bool:
         return True
     return False
 
-def probe_bt_mac(mac: str) -> bool:
+def probe_bt_mac(mac: str, interface: str) -> bool:
     try:
         subprocess.run(
-            ['l2ping', mac, '-t', '1', '-c', '1', '-s', '10', '-v'],
+            [
+                'l2ping', mac,
+                '-t', '1',
+                '-c', '1',
+                '-s', '10',
+                '-i', interface,
+                '-v',
+            ],
             shell=False,
             check=True,
         )
@@ -61,6 +68,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--macs', type=str, nargs='+')
     parser.add_argument('-i', '--interval', type=int, default=3)
+    parser.add_argument('-t', '--interface', type=str, default='hci0')
     parser.add_argument('-r', '--retry', type=int, default=8)
     args = parser.parse_args()
 
@@ -68,6 +76,8 @@ if __name__ == "__main__":
         config['macs'] = args.macs
     if args.interval:
         config['interval'] = args.interval
+    if args.interface:
+        config['interface'] = args.interface
     if args.retry:
         config['retry'] = args.retry
 
@@ -81,7 +91,7 @@ if __name__ == "__main__":
         device_available = False
         while tries < config['retry']:
             for address in config['macs']:
-                if probe_bt_mac(address):
+                if probe_bt_mac(address, config['interface']):
                     device_available = True
                     break
             if device_available:
