@@ -83,6 +83,8 @@ if __name__ == "__main__":
 
     while True:
         current_id = get_session_id()
+        if not current_id:
+            continue
         is_locked = check_locked(current_id)
         if is_locked:
             continue
