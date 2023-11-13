@@ -101,7 +101,7 @@ if __name__ == "__main__":
             time.sleep(config['interval'])
             tries += 1
 
-        if (not device_available) and (not is_locked):
+        if not device_available:
             subprocess.run(
                 ['loginctl', 'lock-session', str(current_id)],
                 shell=False,
