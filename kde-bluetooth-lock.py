@@ -48,7 +48,6 @@ def probe_bt_mac(mac: str, interface: str) -> bool:
                 '-c', '1',
                 '-s', '10',
                 '-i', interface,
-                '-v',
             ],
             shell=False,
             check=True,
