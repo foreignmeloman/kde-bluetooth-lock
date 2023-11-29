@@ -91,7 +91,7 @@ if __name__ == "__main__":
         while tries < tries_max:
             tries += 1
             for address in config['macs']:
-                print(f'Probing {address} try: {tries}/{tries_max}')
+                print(f'Probing {address} try: {tries}/{tries_max}', flush=True)
                 if probe_bt_mac(address):
                     device_available = True
                     break
@@ -100,7 +100,7 @@ if __name__ == "__main__":
             time.sleep(config['interval'])
 
         if not device_available:
-            print(f'Locking session {current_id}')
+            print(f'Locking session {current_id}', flush=True)
             subprocess.run(
                 ['loginctl', 'lock-session', str(current_id)],
                 shell=False,
