@@ -1,6 +1,5 @@
 {
 	"macs": ["AA:BB:CC:DD:EE:FF"],
-	"interface": "hci0",
-	"interval": 3,
-	"retry": 8
+	"interval": 5,
+	"retry": 6
 }

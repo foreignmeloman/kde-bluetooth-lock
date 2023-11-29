@@ -6,7 +6,7 @@ import sys
 
 
 if not sys.version_info >= (3, 7):
-    print('ERROR: Python version >= 3.7 is required', file=sys.stderr)
+    raise RuntimeError('Python version >= 3.7 is required', file=sys.stderr)
 
 
 CONFIG_PATH = '/etc/kde-bluetooth-lock/config.json'
@@ -21,8 +21,9 @@ def get_session_id() -> int:
     sessions = out.stdout.decode().strip().split('\n')
     session_id = None
     for session in sessions:
-        if str(session).count('seat0') != 0:
-            session_id = int(session.split()[0])
+        session_split = session.split()
+        if session_split[3] == 'seat0' and int(session_split[1]) >= 1000:
+            session_id = int(session_split[0])
             break
     return session_id
 
@@ -39,7 +40,7 @@ def check_locked(session_id: int) -> bool:
         return True
     return False
 
-def probe_bt_mac(mac: str, interface: str) -> bool:
+def probe_bt_mac(mac: str) -> bool:
     try:
         subprocess.run(
             [
@@ -47,7 +48,6 @@ def probe_bt_mac(mac: str, interface: str) -> bool:
                 '-t', '1',
                 '-c', '1',
                 '-s', '10',
-                '-i', interface,
             ],
             shell=False,
             check=True,
@@ -66,17 +66,14 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--macs', type=str, nargs='+')
-    parser.add_argument('-i', '--interval', type=int, default=3)
-    parser.add_argument('-t', '--interface', type=str, default='hci0')
-    parser.add_argument('-r', '--retry', type=int, default=8)
+    parser.add_argument('-i', '--interval', type=int)
+    parser.add_argument('-r', '--retry', type=int)
     args = parser.parse_args()
 
     if args.macs:
         config['macs'] = args.macs
     if args.interval:
         config['interval'] = args.interval
-    if args.interface:
-        config['interface'] = args.interface
     if args.retry:
         config['retry'] = args.retry
 
@@ -89,18 +86,21 @@ if __name__ == "__main__":
             continue
 
         tries = 0
+        tries_max = config['retry']
         device_available = False
-        while tries < config['retry']:
+        while tries < tries_max:
+            tries += 1
             for address in config['macs']:
-                if probe_bt_mac(address, config['interface']):
+                print(f'Probing {address} try: {tries}/{tries_max}')
+                if probe_bt_mac(address):
                     device_available = True
                     break
             if device_available:
                 break
             time.sleep(config['interval'])
-            tries += 1
 
         if not device_available:
+            print(f'Locking session {current_id}')
             subprocess.run(
                 ['loginctl', 'lock-session', str(current_id)],
                 shell=False,
