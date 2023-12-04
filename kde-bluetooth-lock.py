@@ -22,7 +22,9 @@ def get_session_id() -> int:
     session_id = None
     for session in sessions:
         session_split = session.split()
-        if session_split[3] == 'seat0' and int(session_split[1]) >= 1000:
+        session_seat = session_split[3]
+        session_uid = int(session_split[1])
+        if session_seat == 'seat0' and session_uid >= 1000:
             session_id = int(session_split[0])
             break
     return session_id
