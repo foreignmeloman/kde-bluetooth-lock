@@ -11,6 +11,7 @@ if not sys.version_info >= (3, 7):
 
 CONFIG_PATH = '/etc/kde-bluetooth-lock/config.json'
 
+
 def get_session_id() -> int:
     out = subprocess.run(
         ['loginctl', 'list-sessions', '--no-legend'],
@@ -29,6 +30,7 @@ def get_session_id() -> int:
             break
     return session_id
 
+
 def check_locked(session_id: int) -> bool:
     out = subprocess.run(
         ['loginctl', 'show-session', str(session_id)],
@@ -42,14 +44,19 @@ def check_locked(session_id: int) -> bool:
         return True
     return False
 
+
 def probe_bt_mac(mac: str) -> bool:
     try:
         subprocess.run(
             [
-                'l2ping', mac,
-                '-t', '1',
-                '-c', '1',
-                '-s', '10',
+                'l2ping',
+                mac,
+                '-t',
+                '1',
+                '-c',
+                '1',
+                '-s',
+                '10',
             ],
             shell=False,
             check=True,
@@ -58,7 +65,8 @@ def probe_bt_mac(mac: str) -> bool:
     except subprocess.CalledProcessError:
         return False
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     config = {}
     try:
         with open(CONFIG_PATH) as fh:
