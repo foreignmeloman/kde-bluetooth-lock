@@ -14,19 +14,16 @@ CONFIG_PATH = '/etc/kde-bluetooth-lock/config.json'
 
 def get_session_id() -> int:
     out = subprocess.run(
-        ['loginctl', 'list-sessions', '--no-legend'],
+        ['loginctl', '-o', 'json', 'list-sessions'],
         shell=False,
         check=True,
         capture_output=True,
     )
-    sessions = out.stdout.decode().strip().split('\n')
+    sessions = json.loads(out.stdout.decode().strip())
     session_id = None
     for session in sessions:
-        session_split = session.split()
-        session_seat = session_split[3]
-        session_uid = int(session_split[1])
-        if session_seat == 'seat0' and session_uid >= 1000:
-            session_id = int(session_split[0])
+        if session.get('seat') == 'seat0' and session.get('uid') >= 1000:
+            session_id = int(session.get('session'))
             break
     return session_id
 
