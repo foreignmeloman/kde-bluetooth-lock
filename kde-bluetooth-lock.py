@@ -1,4 +1,6 @@
 import argparse
+import configparser
+import logging
 import subprocess
 import time
 import json
@@ -12,39 +14,58 @@ if not sys.version_info >= (3, 7):
 CONFIG_PATH = '/etc/kde-bluetooth-lock/config.json'
 
 
-def get_session_id() -> int:
+def get_sessions() -> list:
     out = subprocess.run(
         ['loginctl', '-o', 'json', 'list-sessions'],
         shell=False,
         check=True,
         capture_output=True,
     )
-    sessions = json.loads(out.stdout.decode().strip())
+    return json.loads(out.stdout.decode().strip())
+
+
+def get_session_info(session_id: int) -> dict:
+    try:
+        out = subprocess.run(
+            ['loginctl', 'show-session', str(session_id)],
+            shell=False,
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError:
+        return {}
+    session_info_config = configparser.RawConfigParser()
+    session_info_config.optionxform = str  # Make configparser case insensitive
+    # Hack: add a stub section header for configparser
+    session_info_config.read_string(f'[0]\n{out.stdout.decode().strip()}')
+    return dict(session_info_config['0'])
+
+
+def get_active_session_id() -> int:
+    sessions = get_sessions()
     session_id = None
     for session in sessions:
-        if session.get('seat') == 'seat0' and session.get('uid') >= 1000:
+        session_info = get_session_info(int(session['session']))
+        if (
+            session.get('seat') == 'seat0'
+            and session.get('uid') >= 1000
+            and session_info.get('Active') == 'yes'
+        ):
             session_id = int(session.get('session'))
             break
     return session_id
 
 
 def check_locked(session_id: int) -> bool:
-    out = subprocess.run(
-        ['loginctl', 'show-session', str(session_id)],
-        shell=False,
-        check=True,
-        capture_output=True,
-    )
-    lines = out.stdout.decode().strip().split('\n')
-    locked_line = list(filter(lambda x: x.startswith('LockedHint'), lines))[0]
-    if locked_line.split('=')[1] == 'yes':
+    session_info = get_session_info(session_id)
+    if session_info.get('LockedHint') == 'yes':
         return True
     return False
 
 
 def probe_bt_mac(mac: str) -> bool:
     try:
-        subprocess.run(
+        out = subprocess.run(
             [
                 'l2ping',
                 mac,
@@ -57,9 +78,12 @@ def probe_bt_mac(mac: str) -> bool:
             ],
             shell=False,
             check=True,
+            capture_output=True,
         )
+        logging.info(out.stdout.decode().strip().replace('\n', '\t'))
         return True
     except subprocess.CalledProcessError:
+        logging.error(out.stderr.decode().strip())
         return False
 
 
@@ -75,6 +99,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--macs', type=str, nargs='+')
     parser.add_argument('-i', '--interval', type=int)
     parser.add_argument('-r', '--retry', type=int)
+    parser.add_argument('-l', '--log-level', type=str)
     args = parser.parse_args()
 
     if args.macs:
@@ -83,13 +108,19 @@ if __name__ == '__main__':
         config['interval'] = args.interval
     if args.retry:
         config['retry'] = args.retry
+    if args.log_level:
+        config['log_level'] = args.log_level
+
+    logging.basicConfig(
+        format='%(levelname)s: %(message)s',
+        level=config.get('log_level', 'INFO'),
+    )
 
     while True:
-        current_id = get_session_id()
+        current_id = get_active_session_id()
         if not current_id:
             continue
-        is_locked = check_locked(current_id)
-        if is_locked:
+        if check_locked(current_id):
             continue
 
         tries = 0
@@ -98,7 +129,13 @@ if __name__ == '__main__':
         while tries < tries_max:
             tries += 1
             for address in config['macs']:
-                print(f'Probing {address} try: {tries}/{tries_max}', flush=True)
+                logging.info(
+                    'Probing %s try: %d/%d, session: %d',
+                    address,
+                    tries,
+                    tries_max,
+                    current_id,
+                )
                 if probe_bt_mac(address):
                     device_available = True
                     break
@@ -107,10 +144,17 @@ if __name__ == '__main__':
             time.sleep(config['interval'])
 
         if not device_available:
-            print(f'Locking session {current_id}', flush=True)
-            subprocess.run(
-                ['loginctl', 'lock-session', str(current_id)],
-                shell=False,
-                check=True,
-            )
+            try:
+                logging.info('Locking session %d', current_id)
+                subprocess.run(
+                    ['loginctl', 'lock-session', str(current_id)],
+                    shell=False,
+                    check=True,
+                )
+            except subprocess.CalledProcessError:
+                logging.error(
+                    'Failed to lock session %d',
+                    current_id,
+                    exc_info=True,
+                )
         time.sleep(config['interval'])
