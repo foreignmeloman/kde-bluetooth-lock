@@ -64,27 +64,26 @@ def check_locked(session_id: int) -> bool:
 
 
 def probe_bt_mac(mac: str) -> bool:
-    try:
-        out = subprocess.run(
-            [
-                'l2ping',
-                mac,
-                '-t',
-                '1',
-                '-c',
-                '1',
-                '-s',
-                '10',
-            ],
-            shell=False,
-            check=True,
-            capture_output=True,
-        )
+    out = subprocess.run(
+        [
+            'l2ping',
+            mac,
+            '-t',
+            '1',
+            '-c',
+            '1',
+            '-s',
+            '10',
+        ],
+        shell=False,
+        check=False,
+        capture_output=True,
+    )
+    if out.returncode == 0:
         logging.info(out.stdout.decode().strip().replace('\n', '\t'))
         return True
-    except subprocess.CalledProcessError:
-        logging.error(out.stderr.decode().strip())
-        return False
+    logging.error(out.stderr.decode().strip())
+    return False
 
 
 if __name__ == '__main__':
