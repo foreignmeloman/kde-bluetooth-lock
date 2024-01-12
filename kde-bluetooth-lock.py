@@ -80,7 +80,7 @@ def probe_bt_mac(mac: str) -> bool:
         capture_output=True,
     )
     if out.returncode == 0:
-        logging.info(out.stdout.decode().strip().replace('\n', '\t'))
+        logging.info(out.stdout.decode().strip().replace('\n', ' '))
         return True
     logging.error(out.stderr.decode().strip())
     return False
