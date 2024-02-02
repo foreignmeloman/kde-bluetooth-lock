@@ -35,7 +35,7 @@ def get_session_info(session_id: int) -> dict:
     except subprocess.CalledProcessError:
         return {}
     session_info_config = configparser.RawConfigParser()
-    session_info_config.optionxform = str  # Make configparser case insensitive
+    session_info_config.optionxform = str  # Make configparser case sensitive
     # Hack: add a stub section header for configparser
     session_info_config.read_string(f'[0]\n{out.stdout.decode().strip()}')
     return dict(session_info_config['0'])
