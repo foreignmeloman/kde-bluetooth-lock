@@ -1,7 +1,7 @@
 ## Install
 
 ```bash
-sudo make install
+sudo ./install.sh
 ```
 
 
@@ -21,5 +21,5 @@ sudo systemctl enable --now kde-bluetooth-lock.service
 ## Uninstall
 
 ```bash
-sudo make uninstall
+sudo ./install.sh -u
 ```
