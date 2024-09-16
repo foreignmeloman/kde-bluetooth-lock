@@ -16,12 +16,30 @@ CONFIG_PATH = '/etc/kde-bluetooth-lock/config.json'
 
 def get_sessions() -> list:
     out = subprocess.run(
-        ['loginctl', '-o', 'json', 'list-sessions'],
+        ['loginctl', 'list-sessions', '--no-legend'],
         shell=False,
         check=True,
         capture_output=True,
     )
-    return json.loads(out.stdout.decode().strip())
+    sessions_raw = [
+        row.split() for row in out.stdout.decode().strip().split('\n')
+    ]
+    sessions = []
+    for session in sessions_raw:
+        sessions.append(
+            {
+                'session' : session[0],
+                'uid' : int(session[1]),
+                'user' : session[2],
+                'seat' : session[3],
+                'leader': session[4],
+                'class': session[5],
+                'tty' : session[6],
+                'idle' : bool(session[7]),
+                'since' : session[8],
+            }
+        )
+    return sessions
 
 
 def get_session_info(session_id: int) -> dict:
