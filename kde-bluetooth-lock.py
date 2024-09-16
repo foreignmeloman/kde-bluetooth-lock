@@ -1,4 +1,3 @@
-import argparse
 import configparser
 import logging
 import subprocess
@@ -6,9 +5,12 @@ import time
 import json
 import sys
 
+from typing import Literal
 
-if not sys.version_info >= (3, 7):
-    raise RuntimeError('Python version >= 3.7 is required')
+REQUIRED_MIN_VERSION = (3, 8)
+
+if sys.version_info < REQUIRED_MIN_VERSION:
+    raise RuntimeError(f'Python version >= {REQUIRED_MIN_VERSION} is required')
 
 
 CONFIG_PATH = '/etc/kde-bluetooth-lock/config.json'
@@ -28,15 +30,15 @@ def get_sessions() -> list:
     for session in sessions_raw:
         sessions.append(
             {
-                'session' : session[0],
-                'uid' : int(session[1]),
-                'user' : session[2],
-                'seat' : session[3],
+                'session': session[0],
+                'uid': int(session[1]),
+                'user': session[2],
+                'seat': session[3],
                 'leader': session[4],
                 'class': session[5],
-                'tty' : session[6],
-                'idle' : bool(session[7]),
-                'since' : session[8],
+                'tty': session[6],
+                'idle': bool(session[7]),
+                'since': session[8],
             }
         )
     return sessions
@@ -59,9 +61,7 @@ def get_session_info(session_id: int) -> dict:
     return dict(session_info_config['0'])
 
 
-def get_active_session_id() -> int:
-    sessions = get_sessions()
-    session_id = None
+def get_active_session(sessions: list) -> int:
     for session in sessions:
         session_info = get_session_info(int(session['session']))
         if (
@@ -69,9 +69,7 @@ def get_active_session_id() -> int:
             and session.get('uid') >= 1000
             and session_info.get('Active') == 'yes'
         ):
-            session_id = int(session.get('session'))
-            break
-    return session_id
+            return session
 
 
 def check_locked(session_id: int) -> bool:
@@ -104,29 +102,31 @@ def probe_bt_mac(mac: str) -> bool:
     return False
 
 
+def send_system_notification(
+    user_id: int,
+    urgency: Literal['low', 'normal', 'critical'],
+    title: str,
+    message: str,
+):
+    subprocess.run(
+        [
+            'notify-send',
+            '-u',
+            urgency,
+            '-a',
+            title,
+            message,
+        ],
+        shell=False,
+        check=True,
+        user=user_id,
+        env={'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/{user_id}/bus'},
+    )
+
+
 if __name__ == '__main__':
-    config = {}
-    try:
-        with open(CONFIG_PATH) as fh:
-            config = json.loads(fh.read())
-    except FileNotFoundError:
-        pass
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--macs', type=str, nargs='+')
-    parser.add_argument('-i', '--interval', type=int)
-    parser.add_argument('-r', '--retry', type=int)
-    parser.add_argument('-l', '--log-level', type=str)
-    args = parser.parse_args()
-
-    if args.macs:
-        config['macs'] = args.macs
-    if args.interval:
-        config['interval'] = args.interval
-    if args.retry:
-        config['retry'] = args.retry
-    if args.log_level:
-        config['log_level'] = args.log_level
+    with open(CONFIG_PATH) as fh:
+        config = json.loads(fh.read())
 
     logging.basicConfig(
         format='%(levelname)s: %(message)s',
@@ -134,10 +134,13 @@ if __name__ == '__main__':
     )
 
     while True:
-        current_id = get_active_session_id()
-        if not current_id:
+        sessions = get_sessions()
+        active_session = get_active_session(sessions)
+        session_id = active_session.get('session')
+        user_id = active_session.get('uid')
+        if not session_id:
             continue
-        if check_locked(current_id):
+        if check_locked(session_id):
             continue
 
         tries = 0
@@ -147,31 +150,40 @@ if __name__ == '__main__':
             tries += 1
             for address in config['macs']:
                 logging.info(
-                    'Probing %s try: %d/%d, session: %d',
+                    'Probing %s try: %d/%d, session: %s',
                     address,
                     tries,
                     tries_max,
-                    current_id,
+                    session_id,
                 )
                 if probe_bt_mac(address):
                     device_available = True
                     break
+                if config.get('notify', False):
+                    send_system_notification(
+                        user_id=user_id,
+                        urgency='normal',
+                        title='KDE Bluetooth Lock service',
+                        message=(
+                            f'Probing {address} failed\nTry {tries}/{tries_max}'
+                        ),
+                    )
             if device_available:
                 break
             time.sleep(config['interval'])
 
         if not device_available:
             try:
-                logging.info('Locking session %d', current_id)
+                logging.info('Locking session %s', session_id)
                 subprocess.run(
-                    ['loginctl', 'lock-session', str(current_id)],
+                    ['loginctl', 'lock-session', session_id],
                     shell=False,
                     check=True,
                 )
             except subprocess.CalledProcessError:
                 logging.error(
-                    'Failed to lock session %d',
-                    current_id,
+                    'Failed to lock session %s',
+                    session_id,
                     exc_info=True,
                 )
         time.sleep(config['interval'])

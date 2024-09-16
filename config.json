@@ -2,5 +2,6 @@
 	"macs": ["AA:BB:CC:DD:EE:FF"],
 	"interval": 10,
 	"retry": 6,
-	"log_level": "INFO"
+	"log_level": "INFO",
+	"notify": true
 }
