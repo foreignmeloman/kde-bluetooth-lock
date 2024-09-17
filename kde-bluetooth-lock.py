@@ -26,21 +26,20 @@ def get_sessions() -> list:
     sessions_raw = [
         row.split() for row in out.stdout.decode().strip().split('\n')
     ]
-    sessions = []
-    for session in sessions_raw:
-        sessions.append(
-            {
-                'session': session[0],
-                'uid': int(session[1]),
-                'user': session[2],
-                'seat': session[3],
-                'leader': session[4],
-                'class': session[5],
-                'tty': session[6],
-                'idle': bool(session[7]),
-                'since': session[8],
-            }
-        )
+    sessions = [
+        {
+            'session': session[0],
+            'uid': int(session[1]),
+            'user': session[2],
+            'seat': session[3],
+            'leader': session[4],
+            'class': session[5],
+            'tty': session[6],
+            'idle': bool(session[7]),
+            'since': session[8],
+        }
+        for session in sessions_raw
+    ]
     return sessions
 
 
