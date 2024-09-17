@@ -158,7 +158,12 @@ if __name__ == '__main__':
                 if probe_bt_mac(address):
                     device_available = True
                     break
-                if config.get('notify', False):
+                if (
+                    config.get('notify', False)
+                    and tries
+                    >= (tries_max * config.get('notify_after_loss_percent'))
+                    // 100
+                ):
                     send_system_notification(
                         user_id=user_id,
                         urgency='normal',

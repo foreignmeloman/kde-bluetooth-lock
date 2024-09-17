@@ -3,5 +3,6 @@
 	"interval": 10,
 	"retry": 6,
 	"log_level": "INFO",
-	"notify": true
+	"notify": true,
+	"notify_after_loss_percent": 50
 }
