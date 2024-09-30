@@ -16,31 +16,31 @@ if sys.version_info < REQUIRED_MIN_VERSION:
 CONFIG_PATH = '/etc/kde-bluetooth-lock/config.json'
 
 
-def get_sessions() -> list:
+def get_loginctl_version() -> int:
     out = subprocess.run(
-        ['loginctl', 'list-sessions', '--no-legend'],
+        ['loginctl', '--version'],
         shell=False,
         check=True,
         capture_output=True,
     )
-    sessions_raw = [
-        row.split() for row in out.stdout.decode().strip().split('\n')
-    ]
-    sessions = [
-        {
-            'session': session[0],
-            'uid': int(session[1]),
-            'user': session[2],
-            'seat': session[3],
-            'leader': session[4],
-            'class': session[5],
-            'tty': session[6],
-            'idle': bool(session[7]),
-            'since': session[8],
-        }
-        for session in sessions_raw
-    ]
-    return sessions
+    version_line = out.stdout.decode().strip().split('\n')[0]
+    return int(version_line.split()[1])
+
+
+LOGINCTL_VERSION = get_loginctl_version()
+
+
+def get_sessions() -> list:
+    cmd = ['loginctl', '-o', 'json', 'list-sessions']
+    if LOGINCTL_VERSION >= 256:
+        cmd = ['loginctl', '--json=short', 'list-sessions']
+    out = subprocess.run(
+        cmd,
+        shell=False,
+        check=True,
+        capture_output=True,
+    )
+    return json.loads(out.stdout.decode().strip())
 
 
 def get_session_info(session_id: int) -> dict:
