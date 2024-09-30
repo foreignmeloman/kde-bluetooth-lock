@@ -1,9 +1,10 @@
 import configparser
-import logging
-import subprocess
-import time
 import json
+import logging
+import shutil
+import subprocess
 import sys
+import time
 
 from typing import Literal
 
@@ -107,6 +108,12 @@ def send_system_notification(
     title: str,
     message: str,
 ):
+    if not shutil.which('notify-send'):
+        logging.warning(
+            'notify-send was not found in your PATH. '
+            'Skipping desktop notifications'
+        )
+        return
     subprocess.run(
         [
             'notify-send',

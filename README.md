@@ -1,3 +1,9 @@
+## Requirements
+
+* Python >= 3.8
+* `notify-send` util from [libnotify](https://gitlab.gnome.org/GNOME/libnotify) (Optional)
+
+
 ## Install
 
 ```bash
@@ -17,7 +23,7 @@ Available configuration options:
 | `interval` | Interval in seconds between polls
 | `retry` | Retry count
 | `log_level` | Verbosity level of the logs. Possible values: ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-| `notify` | A json boolean to enable desktop notifications
+| `notify` | A json boolean to enable desktop notifications, if `notify-send` binary is available
 | `notify_after_loss_percent`| Notifications will be sent after the percentage of failed poll tries exceeds the specified threshold
 
 ## Run
