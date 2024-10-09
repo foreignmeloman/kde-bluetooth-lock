@@ -142,6 +142,9 @@ if __name__ == '__main__':
     while True:
         sessions = get_sessions()
         active_session = get_active_session(sessions)
+        if not active_session:
+            logging.debug('sessions = %s', str(sessions))
+            continue
         session_id = active_session.get('session')
         user_id = active_session.get('uid')
         if not session_id:
