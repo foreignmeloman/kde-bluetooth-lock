@@ -17,6 +17,14 @@ if sys.version_info < REQUIRED_MIN_VERSION:
 CONFIG_PATH = '/etc/kde-bluetooth-lock/config.json'
 
 
+class RawCaseSensitiveConfigParser(configparser.RawConfigParser):
+    """
+    A case sensitive variant of configparser.RawConfigParser class
+    """
+    def optionxform(self, optionstr: str) -> str:
+        return str(optionstr)
+
+
 def get_loginctl_version() -> int:
     out = subprocess.run(
         ['loginctl', '--version'],
@@ -54,14 +62,13 @@ def get_session_info(session_id: int) -> dict:
         )
     except subprocess.CalledProcessError:
         return {}
-    session_info_config = configparser.RawConfigParser()
-    session_info_config.optionxform = str  # Make configparser case sensitive
+    session_info_config = RawCaseSensitiveConfigParser()
     # Hack: add a stub section header for configparser
     session_info_config.read_string(f'[0]\n{out.stdout.decode().strip()}')
     return dict(session_info_config['0'])
 
 
-def get_active_session(sessions: list) -> int:
+def get_active_session(sessions: list) -> dict:
     for session in sessions:
         session_info = get_session_info(int(session['session']))
         if (
@@ -70,6 +77,7 @@ def get_active_session(sessions: list) -> int:
             and session_info.get('Active') == 'yes'
         ):
             return session
+    return {}
 
 
 def check_locked(session_id: int) -> bool:
@@ -146,7 +154,7 @@ if __name__ == '__main__':
             logging.debug('sessions = %s', str(sessions))
             continue
         session_id = active_session.get('session')
-        user_id = active_session.get('uid')
+        user_id = active_session['uid']
         if not session_id:
             continue
         if check_locked(session_id):
