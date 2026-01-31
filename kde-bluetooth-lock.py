@@ -21,6 +21,7 @@ class RawCaseSensitiveConfigParser(configparser.RawConfigParser):
     """
     A case sensitive variant of configparser.RawConfigParser class
     """
+
     def optionxform(self, optionstr: str) -> str:
         return str(optionstr)
 
@@ -52,10 +53,10 @@ def get_sessions() -> list:
     return json.loads(out.stdout.decode().strip())
 
 
-def get_session_info(session_id: int) -> dict:
+def get_session_info(session_id: str) -> dict:
     try:
         out = subprocess.run(
-            ['loginctl', 'show-session', str(session_id)],
+            ['loginctl', 'show-session', session_id],
             shell=False,
             check=True,
             capture_output=True,
@@ -70,7 +71,7 @@ def get_session_info(session_id: int) -> dict:
 
 def get_active_session(sessions: list) -> dict:
     for session in sessions:
-        session_info = get_session_info(int(session['session']))
+        session_info = get_session_info(session['session'])
         if (
             session.get('seat') == 'seat0'
             and session.get('uid') >= 1000
@@ -80,7 +81,7 @@ def get_active_session(sessions: list) -> dict:
     return {}
 
 
-def check_locked(session_id: int) -> bool:
+def check_locked(session_id: str) -> bool:
     session_info = get_session_info(session_id)
     if session_info.get('LockedHint') == 'yes':
         return True
