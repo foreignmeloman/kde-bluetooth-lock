@@ -4,6 +4,7 @@ import logging
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 from typing import Literal
@@ -106,11 +107,40 @@ def probe_bt_mac(mac: str) -> bool:
     return False
 
 
+def _run_notification(
+    cmd: list,
+    user_id: int,
+    env: dict,
+    postpone_event: threading.Event | None,
+):
+    try:
+        out = subprocess.run(
+            cmd,
+            shell=False,
+            check=True,
+            capture_output=True,
+            user=user_id,
+            env=env,
+        )
+        if (
+            postpone_event is not None
+            and out.stdout.decode().strip() == 'postpone'
+        ):
+            logging.info('User requested postpone')
+            postpone_event.set()
+    except subprocess.CalledProcessError as err:
+        logging.warning(
+            'Failed to send desktop notification: %s',
+            err.stderr.decode().strip(),
+        )
+
+
 def send_system_notification(
     user_id: int,
     urgency: Literal['low', 'normal', 'critical'],
     title: str,
     message: str,
+    postpone_event: threading.Event | None = None,
 ):
     if not shutil.which('notify-send'):
         logging.warning(
@@ -118,29 +148,23 @@ def send_system_notification(
             'Skipping desktop notifications'
         )
         return
-    try:
-        subprocess.run(
-            [
-                'notify-send',
-                '-u',
-                urgency,
-                '-a',
-                title,
-                message,
-            ],
-            shell=False,
-            check=True,
-            capture_output=True,
-            user=user_id,
-            env={
-                'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/{user_id}/bus'
-            },
+
+    cmd = ['notify-send', '-u', urgency, '-a', title]
+    if postpone_event is not None:
+        cmd.extend(['--action=postpone=Postpone', '--wait'])
+    cmd.append(message)
+
+    env = {'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/{user_id}/bus'}
+
+    if postpone_event is not None:
+        thread = threading.Thread(
+            target=_run_notification,
+            args=(cmd, user_id, env, postpone_event),
+            daemon=True,
         )
-    except subprocess.CalledProcessError as err:
-        logging.warning(
-            'Failed to send desktop notification: %s',
-            err.stderr.decode().strip(),
-        )
+        thread.start()
+    else:
+        _run_notification(cmd, user_id, env, postpone_event)
 
 
 if __name__ == '__main__':
@@ -173,7 +197,12 @@ if __name__ == '__main__':
             tries_max * config.get('notify_after_loss_percent', 50)
         ) // 100
         device_available = False
+        postpone_event = threading.Event()
         while tries < tries_max:
+            if postpone_event.is_set():
+                logging.info('Postpone requested, resetting retry count')
+                tries = 0
+                postpone_event.clear()
             tries += 1
             for address in config.get('macs', []):
                 logging.info(
@@ -194,6 +223,7 @@ if __name__ == '__main__':
                     urgency='normal',
                     title='KDE Bluetooth Lock service',
                     message=f'All devices unreachable\nTry {tries}/{tries_max}',
+                    postpone_event=postpone_event,
                 )
             time.sleep(interval)
 
