@@ -69,23 +69,18 @@ def get_session_info(session_id: str) -> dict:
     return dict(session_info_config['0'])
 
 
-def get_active_session(sessions: list) -> dict:
+def get_active_session(sessions: list) -> tuple[dict, dict]:
+    """Returns (session, session_info) tuple for the active session."""
     for session in sessions:
-        session_info = get_session_info(session['session'])
+        session_id = str(session['session'])
+        session_info = get_session_info(session_id)
         if (
             session.get('seat') == 'seat0'
             and session.get('uid') >= 1000
             and session_info.get('Active') == 'yes'
         ):
-            return session
-    return {}
-
-
-def check_locked(session_id: str) -> bool:
-    session_info = get_session_info(session_id)
-    if session_info.get('LockedHint') == 'yes':
-        return True
-    return False
+            return {**session, 'session': session_id}, session_info
+    return {}, {}
 
 
 def probe_bt_mac(mac: str) -> bool:
@@ -123,20 +118,29 @@ def send_system_notification(
             'Skipping desktop notifications'
         )
         return
-    subprocess.run(
-        [
-            'notify-send',
-            '-u',
-            urgency,
-            '-a',
-            title,
-            message,
-        ],
-        shell=False,
-        check=True,
-        user=user_id,
-        env={'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/{user_id}/bus'},
-    )
+    try:
+        subprocess.run(
+            [
+                'notify-send',
+                '-u',
+                urgency,
+                '-a',
+                title,
+                message,
+            ],
+            shell=False,
+            check=True,
+            capture_output=True,
+            user=user_id,
+            env={
+                'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/{user_id}/bus'
+            },
+        )
+    except subprocess.CalledProcessError as err:
+        logging.warning(
+            'Failed to send desktop notification: %s',
+            err.stderr.decode().strip(),
+        )
 
 
 if __name__ == '__main__':
@@ -148,25 +152,30 @@ if __name__ == '__main__':
         level=config.get('log_level', 'INFO'),
     )
 
+    interval = config.get('interval', 10)
+
     while True:
         sessions = get_sessions()
-        active_session = get_active_session(sessions)
+        active_session, session_info = get_active_session(sessions)
         if not active_session:
             logging.debug('sessions = %s', str(sessions))
+            time.sleep(interval)
             continue
-        session_id = active_session.get('session')
+        session_id = active_session['session']
         user_id = active_session['uid']
-        if not session_id:
-            continue
-        if check_locked(session_id):
+        if session_info.get('LockedHint') == 'yes':
+            time.sleep(interval)
             continue
 
         tries = 0
-        tries_max = config['retry']
+        tries_max = config.get('retry', 3)
+        notify_threshold = (
+            tries_max * config.get('notify_after_loss_percent', 50)
+        ) // 100
         device_available = False
         while tries < tries_max:
             tries += 1
-            for address in config['macs']:
+            for address in config.get('macs', []):
                 logging.info(
                     'Probing %s try: %d/%d, session: %s',
                     address,
@@ -177,23 +186,16 @@ if __name__ == '__main__':
                 if probe_bt_mac(address):
                     device_available = True
                     break
-                if (
-                    config.get('notify', False)
-                    and tries
-                    >= (tries_max * config.get('notify_after_loss_percent'))
-                    // 100
-                ):
-                    send_system_notification(
-                        user_id=user_id,
-                        urgency='normal',
-                        title='KDE Bluetooth Lock service',
-                        message=(
-                            f'Probing {address} failed\nTry {tries}/{tries_max}'
-                        ),
-                    )
             if device_available:
                 break
-            time.sleep(config['interval'])
+            if config.get('notify', False) and tries >= notify_threshold:
+                send_system_notification(
+                    user_id=user_id,
+                    urgency='normal',
+                    title='KDE Bluetooth Lock service',
+                    message=f'All devices unreachable\nTry {tries}/{tries_max}',
+                )
+            time.sleep(interval)
 
         if not device_available:
             try:
@@ -209,4 +211,4 @@ if __name__ == '__main__':
                     session_id,
                     exc_info=True,
                 )
-        time.sleep(config['interval'])
+        time.sleep(interval)
