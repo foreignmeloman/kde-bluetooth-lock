@@ -118,20 +118,29 @@ def send_system_notification(
             'Skipping desktop notifications'
         )
         return
-    subprocess.run(
-        [
-            'notify-send',
-            '-u',
-            urgency,
-            '-a',
-            title,
-            message,
-        ],
-        shell=False,
-        check=True,
-        user=user_id,
-        env={'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/{user_id}/bus'},
-    )
+    try:
+        subprocess.run(
+            [
+                'notify-send',
+                '-u',
+                urgency,
+                '-a',
+                title,
+                message,
+            ],
+            shell=False,
+            check=True,
+            capture_output=True,
+            user=user_id,
+            env={
+                'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/{user_id}/bus'
+            },
+        )
+    except subprocess.CalledProcessError as err:
+        logging.warning(
+            'Failed to send desktop notification: %s',
+            err.stderr.decode().strip(),
+        )
 
 
 if __name__ == '__main__':
@@ -160,7 +169,9 @@ if __name__ == '__main__':
 
         tries = 0
         tries_max = config.get('retry', 3)
-        notify_threshold = (tries_max * config.get('notify_after_loss_percent', 50)) // 100
+        notify_threshold = (
+            tries_max * config.get('notify_after_loss_percent', 50)
+        ) // 100
         device_available = False
         while tries < tries_max:
             tries += 1
